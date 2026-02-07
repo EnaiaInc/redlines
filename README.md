@@ -1,6 +1,12 @@
+[![Hex.pm](https://img.shields.io/hexpm/v/redlines)](https://hex.pm/packages/redlines)
+[![Hexdocs.pm](https://img.shields.io/badge/docs-hexdocs.pm-purple)](https://hexdocs.pm/redlines)
+[![Github.com](https://github.com/EnaiaInc/redlines/actions/workflows/ci.yml/badge.svg)](https://github.com/EnaiaInc/redlines/actions)
+
 # Redlines
 
-Extract and normalize tracked changes ("redlines") from DOCX and PDFs.
+Extract and normalize tracked changes ("redlines") from DOCX and PDF documents into a single unified shape.
+
+Redlines parses `<w:ins>` and `<w:del>` elements from DOCX files and integrates with the optional [`pdf_redlines`](https://hex.pm/packages/pdf_redlines) NIF for PDF extraction. All changes are normalized into `Redlines.Change` structs regardless of source format.
 
 ## Installation
 
@@ -9,31 +15,90 @@ Add `:redlines` to your dependencies:
 ```elixir
 def deps do
   [
-    {:redlines, "~> 0.1.0"}
+    {:redlines, "~> 0.5.0"}
   ]
 end
 ```
 
 ### PDF Support
 
-PDF extraction is provided via the [`pdf_redlines`](https://hex.pm/packages/pdf_redlines) package
-(Rust/MuPDF NIF). To enable it, add:
+PDF extraction requires the [`pdf_redlines`](https://hex.pm/packages/pdf_redlines) package (Rust/MuPDF NIF). Add it alongside `redlines` if you need PDF support:
 
 ```elixir
 {:pdf_redlines, "~> 0.6"}
 ```
 
+If `pdf_redlines` is not installed, DOCX extraction works standalone with no additional dependencies beyond `sweet_xml`.
+
 ## Usage
 
+### Extracting Changes
+
 ```elixir
-# DOCX
+# DOCX - extracts <w:ins> and <w:del> from word/document.xml
 {:ok, %Redlines.Result{changes: changes, source: :docx}} =
-  Redlines.extract("/path/to/document.docx")
+  Redlines.extract("contract_v2.docx")
 
-# PDF (requires :pdf_redlines)
+# PDF - requires :pdf_redlines dependency
 {:ok, %Redlines.Result{changes: changes, source: :pdf}} =
-  Redlines.extract("/path/to/document.pdf")
+  Redlines.extract("contract_v2.pdf")
 
-# Format for prompts
-formatted = Redlines.format_for_llm(changes)
+# Override type inference
+{:ok, result} = Redlines.extract("document.bin", type: :docx)
 ```
+
+### Checking for Changes
+
+```elixir
+{:ok, true} = Redlines.has_redlines?("contract_v2.docx")
+{:ok, false} = Redlines.has_redlines?("clean_document.docx")
+```
+
+For PDFs, this uses `PDFRedlines.has_redlines?/2` which does an early-exit scan without full extraction.
+
+### The Change Struct
+
+Every tracked change is normalized into a `Redlines.Change`:
+
+```elixir
+%Redlines.Change{
+  type: :deletion | :insertion | :paired,
+  deletion: "removed text" | nil,
+  insertion: "added text" | nil,
+  location: "page 3, paragraph 2" | nil,
+  meta: %{"source" => "docx", "author" => "Alice", "date" => "2026-01-15T10:00:00Z"}
+}
+```
+
+- `:deletion` - Text was removed
+- `:insertion` - Text was added
+- `:paired` - A deletion and insertion that represent a replacement
+
+### Formatting for LLM Prompts
+
+`format_for_llm/2` produces a structured text summary suitable for including in LLM prompts:
+
+```elixir
+Redlines.format_for_llm(changes)
+# DELETIONS (removed content):
+#   - "the old clause"
+#
+#
+# INSERTIONS (new content):
+#   + "the new clause"
+#
+#
+# DELETED → INSERTED:
+#   "old term" → "new term"
+```
+
+Options:
+
+- `:pair_separator` - Separator between deleted/inserted pairs (default `"→"`)
+- `:max_len` - Truncation length for long text (default `150`)
+
+Accepts a `Redlines.Result`, a list of `Redlines.Change` structs, a raw DOCX track-changes map, or a list of PDF redline entries.
+
+## License
+
+MIT - see [LICENSE](LICENSE).
