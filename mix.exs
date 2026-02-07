@@ -33,6 +33,7 @@ defmodule Redlines.MixProject do
   defp deps do
     [
       {:sweet_xml, "~> 0.7"},
+      {:pdf_redlines, "~> 0.6"},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:ex_doc, "~> 0.39.3", only: :dev, runtime: false},

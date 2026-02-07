@@ -6,7 +6,7 @@
 
 Extract and normalize tracked changes ("redlines") from DOCX and PDF documents into a single unified shape.
 
-Redlines parses `<w:ins>` and `<w:del>` elements from DOCX files and integrates with the optional [`pdf_redlines`](https://hex.pm/packages/pdf_redlines) NIF for PDF extraction. All changes are normalized into `Redlines.Change` structs regardless of source format.
+Redlines parses `<w:ins>` and `<w:del>` elements from DOCX files and uses [`pdf_redlines`](https://hex.pm/packages/pdf_redlines) (precompiled Rust/MuPDF NIF) for PDF extraction. All changes are normalized into `Redlines.Change` structs regardless of source format.
 
 ## Installation
 
@@ -20,15 +20,7 @@ def deps do
 end
 ```
 
-### PDF Support
-
-PDF extraction requires the [`pdf_redlines`](https://hex.pm/packages/pdf_redlines) package (Rust/MuPDF NIF). Add it alongside `redlines` if you need PDF support:
-
-```elixir
-{:pdf_redlines, "~> 0.6"}
-```
-
-If `pdf_redlines` is not installed, DOCX extraction works standalone with no additional dependencies beyond `sweet_xml`.
+PDF support is included out of the box via the precompiled [`pdf_redlines`](https://hex.pm/packages/pdf_redlines) NIF -- no Rust toolchain required.
 
 ## Usage
 
@@ -39,7 +31,7 @@ If `pdf_redlines` is not installed, DOCX extraction works standalone with no add
 {:ok, %Redlines.Result{changes: changes, source: :docx}} =
   Redlines.extract("contract_v2.docx")
 
-# PDF - requires :pdf_redlines dependency
+# PDF
 {:ok, %Redlines.Result{changes: changes, source: :pdf}} =
   Redlines.extract("contract_v2.pdf")
 

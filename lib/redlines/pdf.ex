@@ -1,39 +1,29 @@
 defmodule Redlines.PDF do
   @moduledoc """
-  PDF adapter.
-
-  This module integrates with the `pdf_redlines` package (Rust/MuPDF NIF) if it
-  is available at runtime.
+  PDF adapter using the `pdf_redlines` package (precompiled Rust/MuPDF NIF).
   """
 
   alias Redlines.Change
 
   @doc """
   Extract redlines from a PDF file path.
-
-  Requires the `pdf_redlines` package to be present in the caller's dependency
-  tree.
   """
-  @spec extract_redlines(Path.t(), keyword() | map()) :: {:ok, list()} | {:error, term()}
+  @spec extract_redlines(Path.t(), keyword()) :: {:ok, list()} | {:error, term()}
   def extract_redlines(pdf_path, opts \\ []) when is_binary(pdf_path) do
-    with {:ok, arity} <- ensure_pdf_redlines_loaded(:extract_redlines),
-         {:ok, result} <- do_apply(PDFRedlines, :extract_redlines, arity, [pdf_path, opts]) do
-      case result do
-        %{redlines: redlines} when is_list(redlines) -> {:ok, redlines}
-        %_{redlines: redlines} when is_list(redlines) -> {:ok, redlines}
-        other -> {:error, {:unexpected_pdf_redlines_result, other}}
-      end
+    case PDFRedlines.extract_redlines(pdf_path, opts) do
+      {:ok, %{redlines: redlines}} when is_list(redlines) -> {:ok, redlines}
+      {:ok, %_{redlines: redlines}} when is_list(redlines) -> {:ok, redlines}
+      {:ok, other} -> {:error, {:unexpected_pdf_redlines_result, other}}
+      {:error, _} = error -> error
     end
   end
 
   @doc """
-  Fast redline presence check for PDFs (early-exit in `pdf_redlines`).
+  Fast redline presence check for PDFs (early-exit).
   """
-  @spec has_redlines?(Path.t(), keyword() | map()) :: {:ok, boolean()} | {:error, term()}
+  @spec has_redlines?(Path.t(), keyword()) :: {:ok, boolean()} | {:error, term()}
   def has_redlines?(pdf_path, opts \\ []) when is_binary(pdf_path) do
-    with {:ok, arity} <- ensure_pdf_redlines_loaded(:has_redlines?) do
-      do_apply(PDFRedlines, :has_redlines?, arity, [pdf_path, opts])
-    end
+    PDFRedlines.has_redlines?(pdf_path, opts)
   end
 
   @doc """
@@ -59,20 +49,4 @@ defmodule Redlines.PDF do
   end
 
   defp to_change(_), do: nil
-
-  defp ensure_pdf_redlines_loaded(fun) when is_atom(fun) do
-    cond do
-      Code.ensure_loaded?(PDFRedlines) and function_exported?(PDFRedlines, fun, 2) ->
-        {:ok, 2}
-
-      Code.ensure_loaded?(PDFRedlines) and function_exported?(PDFRedlines, fun, 1) ->
-        {:ok, 1}
-
-      true ->
-        {:error, :pdf_redlines_not_available}
-    end
-  end
-
-  defp do_apply(mod, fun, 2, [path, opts]), do: apply(mod, fun, [path, opts])
-  defp do_apply(mod, fun, 1, [path, _opts]), do: apply(mod, fun, [path])
 end

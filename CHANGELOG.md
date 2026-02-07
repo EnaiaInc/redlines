@@ -2,7 +2,9 @@
 
 ## 0.5.0
 
-- Stable public release.
+- `pdf_redlines` is now a required dependency (precompiled NIF, no toolchain needed).
+- Removed runtime detection of `PDFRedlines` module availability.
+- Expanded README with badges, full API docs, and usage examples.
 
 ## 0.1.0
 

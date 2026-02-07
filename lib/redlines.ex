@@ -6,9 +6,6 @@ defmodule Redlines do
 
   - DOCX track changes (`<w:ins>`, `<w:del>`)
   - PDFs with embedded tracked-changes markup (via [`pdf_redlines`](https://hex.pm/packages/pdf_redlines))
-
-  PDF support is optional: if you want PDF extraction, add `:pdf_redlines` to your
-  application's dependencies.
   """
 
   alias Redlines.{Change, DOCX, Format, PDF, Result}
