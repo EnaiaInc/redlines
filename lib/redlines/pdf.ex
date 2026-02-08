@@ -17,14 +17,6 @@ defmodule Redlines.PDF do
   end
 
   @doc """
-  Fast redline presence check for PDFs (early-exit).
-  """
-  @spec has_redlines?(Path.t(), keyword()) :: {:ok, boolean()} | {:error, term()}
-  def has_redlines?(pdf_path, opts \\ []) when is_binary(pdf_path) do
-    PDFRedlines.has_redlines?(pdf_path, opts)
-  end
-
-  @doc """
   Convert `pdf_redlines` entries into normalized changes.
   """
   @spec to_changes(list()) :: [Change.t()]

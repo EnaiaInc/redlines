@@ -15,7 +15,7 @@ Add `:redlines` to your dependencies:
 ```elixir
 def deps do
   [
-    {:redlines, "~> 0.5.1"}
+    {:redlines, "~> 0.6.0"}
   ]
 end
 ```
@@ -38,15 +38,6 @@ PDF support is included out of the box via the precompiled [`pdf_redlines`](http
 # Override type inference
 {:ok, result} = Redlines.extract("document.bin", type: :docx)
 ```
-
-### Checking for Changes
-
-```elixir
-{:ok, true} = Redlines.has_redlines?("contract_v2.docx")
-{:ok, false} = Redlines.has_redlines?("clean_document.docx")
-```
-
-For PDFs, this uses `PDFRedlines.has_redlines?/2` which does an early-exit scan without full extraction.
 
 ### The Change Struct
 
@@ -90,6 +81,18 @@ Options:
 - `:max_len` - Truncation length for long text (default `150`)
 
 Accepts a `Redlines.Result`, a list of `Redlines.Change` structs, a raw DOCX track-changes map, or a list of PDF redline entries.
+
+## Performance
+
+PDF extraction uses a precompiled Rust NIF and finishes under 700 ms even on
+large scanned documents (35 MB+). DOCX parsing is pure Elixir XML and is
+effectively instant.
+
+## Performance
+
+PDF extraction uses a precompiled Rust NIF and finishes under 700 ms even on
+large scanned documents (35 MB+). DOCX parsing is pure Elixir XML and is
+effectively instant.
 
 ## License
 
