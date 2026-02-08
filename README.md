@@ -15,7 +15,7 @@ Add `:redlines` to your dependencies:
 ```elixir
 def deps do
   [
-    {:redlines, "~> 0.5.0"}
+    {:redlines, "~> 0.5.1"}
   ]
 end
 ```

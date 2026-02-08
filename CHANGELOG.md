@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.1
+
+- Bump `pdf_redlines` dependency to `~> 0.6.3`
+
 ## 0.5.0
 
 - `pdf_redlines` is now a required dependency (precompiled NIF, no toolchain needed).

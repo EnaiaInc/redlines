@@ -11,9 +11,7 @@ defmodule Redlines.PDF do
   @spec extract_redlines(Path.t(), keyword()) :: {:ok, list()} | {:error, term()}
   def extract_redlines(pdf_path, opts \\ []) when is_binary(pdf_path) do
     case PDFRedlines.extract_redlines(pdf_path, opts) do
-      {:ok, %{redlines: redlines}} when is_list(redlines) -> {:ok, redlines}
-      {:ok, %_{redlines: redlines}} when is_list(redlines) -> {:ok, redlines}
-      {:ok, other} -> {:error, {:unexpected_pdf_redlines_result, other}}
+      {:ok, %PDFRedlines.Result{redlines: redlines}} -> {:ok, redlines}
       {:error, _} = error -> error
     end
   end
