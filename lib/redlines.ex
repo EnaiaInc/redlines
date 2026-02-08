@@ -43,31 +43,6 @@ defmodule Redlines do
   end
 
   @doc """
-  Check whether a file contains any tracked changes.
-
-  For PDFs, this uses `PDFRedlines.has_redlines?/2` (fast early-exit).
-  For DOCX, this parses `word/document.xml` and checks extracted changes.
-  """
-  @spec has_redlines?(Path.t(), keyword()) :: {:ok, boolean()} | {:error, term()}
-  def has_redlines?(path, opts \\ []) when is_binary(path) do
-    type = Keyword.get(opts, :type, infer_type(path))
-
-    case type do
-      :pdf ->
-        pdf_opts = Keyword.get(opts, :pdf_opts, [])
-        PDF.has_redlines?(path, pdf_opts)
-
-      :docx ->
-        with {:ok, %Result{changes: changes}} <- extract(path, type: :docx) do
-          {:ok, changes != []}
-        end
-
-      other ->
-        {:error, {:unsupported_type, other}}
-    end
-  end
-
-  @doc """
   Format tracked changes for LLM prompts.
 
   Accepts:
