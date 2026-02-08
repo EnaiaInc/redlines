@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.0
+
+- **Breaking:** Removed `has_redlines?/1`. Callers should use `extract/2` and check `result.changes == []` instead. The old heuristic pre-check doubled the PDF rendering cost and risked false negatives on non-standard redline colors.
+- Bumped `pdf_redlines` to `~> 0.7.0`.
+- Added performance section to README (under 700 ms on 35 MB+ scanned documents).
+
 ## 0.5.1
 
 - Bump `pdf_redlines` dependency to `~> 0.6.3`
