@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.1
+
+- Bump `pdf_redlines` to `~> 0.7.1` (fixes precompiled NIF checksum mismatch)
+
 ## 0.6.0
 
 - **Breaking:** Removed `has_redlines?/1`. Callers should use `extract/2` and check `result.changes == []` instead. The old heuristic pre-check doubled the PDF rendering cost and risked false negatives on non-standard redline colors.
