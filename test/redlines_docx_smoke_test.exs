@@ -3,6 +3,8 @@ defmodule Redlines.DOCXSmokeTest do
 
   alias Redlines.DOCX
 
+  @w_ns ~c"http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+
   @tag :docx_smoke
   test "clean_binary/2 can process a local DOCX corpus without leaving revision markup (optional)" do
     dir = System.get_env("REDLINES_DOCX_SMOKE_DIR")
@@ -86,14 +88,51 @@ defmodule Redlines.DOCXSmokeTest do
   end
 
   defp revision_markup_present?(xml_bin) when is_binary(xml_bin) do
-    # Match common tracked-change wrappers and revision markers with any prefix.
-    # We keep this heuristic string-based to avoid parsing sensitive XML into error output.
-    String.match?(xml_bin, ~r/<(?:[A-Za-z_][\w.-]*:)?(?:ins|del|moveFrom|moveTo)\b/) or
-      String.match?(xml_bin, ~r/<(?:[A-Za-z_][\w.-]*:)?[\w.-]+Change\b/) or
-      String.match?(
-        xml_bin,
-        ~r/<(?:[A-Za-z_][\w.-]*:)?(?:customXml)?(?:ins|del|moveFrom|moveTo)Range(?:Start|End)\b/
-      )
+    # Detect tracked-change markup by namespace URI (not by prefix) to avoid
+    # false positives like DrawingML's <a:moveTo>.
+    initial_state = %{found?: false}
+
+    opts = [
+      :skip_external_dtd,
+      event_state: initial_state,
+      event_fun: &__MODULE__.scan_event/3,
+      discard_ws_before_xml_document: true
+    ]
+
+    case :xmerl_sax_parser.stream(xml_bin, opts) do
+      {:ok, state, _rest} -> state.found?
+      _ -> true
+    end
+  end
+
+  def scan_event({:startElement, uri, local, _qname, _attrs}, _loc, state) do
+    if state.found? do
+      state
+    else
+      local_str = to_string(local)
+
+      if revision_element?(uri, local_str) do
+        %{state | found?: true}
+      else
+        state
+      end
+    end
+  end
+
+  def scan_event(_event, _loc, state), do: state
+
+  defp revision_element?(uri, local_str) do
+    uri == @w_ns and
+      (local_str in ["ins", "del", "moveFrom", "moveTo"] or String.ends_with?(local_str, "Change") or
+         revision_range_marker?(local_str))
+  end
+
+  defp revision_range_marker?(local_str) do
+    down = String.downcase(local_str)
+
+    (String.ends_with?(down, "rangestart") or String.ends_with?(down, "rangeend")) and
+      (String.contains?(down, "ins") or String.contains?(down, "del") or
+         String.contains?(down, "movefrom") or String.contains?(down, "moveto"))
   end
 
   defp parse_int_env(name) do
