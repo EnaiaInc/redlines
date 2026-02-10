@@ -269,24 +269,28 @@ defmodule Redlines.DOCX do
 
   defp clean_entries_with_warnings(entries, parts_set) do
     Enum.reduce_while(entries, {:ok, [], []}, fn {filename, content}, {:ok, acc, warnings} ->
-      entry_name = to_string(filename)
-
-      if MapSet.member?(parts_set, entry_name) do
-        case Cleaner.accept_tracked_changes_xml_with_warnings(content) do
-          {:ok, cleaned_xml, file_warnings} ->
-            file_warnings = Enum.map(file_warnings, &Map.put(&1, :part, entry_name))
-            {:cont, {:ok, [{filename, cleaned_xml} | acc], file_warnings ++ warnings}}
-
-          {:error, reason} ->
-            {:halt, {:error, {:xml_clean_error, entry_name, reason}}}
-        end
-      else
-        {:cont, {:ok, [{filename, content} | acc], warnings}}
-      end
+      clean_entry_with_warnings(filename, content, parts_set, acc, warnings)
     end)
     |> case do
       {:ok, acc, warnings} -> {:ok, Enum.reverse(acc), Enum.reverse(warnings)}
       other -> other
+    end
+  end
+
+  defp clean_entry_with_warnings(filename, content, parts_set, acc, warnings) do
+    entry_name = to_string(filename)
+
+    if MapSet.member?(parts_set, entry_name) do
+      case Cleaner.accept_tracked_changes_xml_with_warnings(content) do
+        {:ok, cleaned_xml, file_warnings} ->
+          file_warnings = Enum.map(file_warnings, &Map.put(&1, :part, entry_name))
+          {:cont, {:ok, [{filename, cleaned_xml} | acc], file_warnings ++ warnings}}
+
+        {:error, reason} ->
+          {:halt, {:error, {:xml_clean_error, entry_name, reason}}}
+      end
+    else
+      {:cont, {:ok, [{filename, content} | acc], warnings}}
     end
   end
 end

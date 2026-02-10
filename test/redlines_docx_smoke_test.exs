@@ -78,11 +78,9 @@ defmodule Redlines.DOCXSmokeTest do
     |> Enum.each(fn {name, content} ->
       part = to_string(name)
 
-      if part in parts do
-        # Avoid ExUnit diff output that might include document content.
-        if revision_markup_present?(content) do
-          flunk("smoke: cleaned XML still contains revision markup (index=#{idx}, part=#{part})")
-        end
+      # Avoid ExUnit diff output that might include document content.
+      if part in parts and revision_markup_present?(content) do
+        flunk("smoke: cleaned XML still contains revision markup (index=#{idx}, part=#{part})")
       end
     end)
   end
