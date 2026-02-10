@@ -5,21 +5,43 @@ defmodule Redlines.DOCX.Cleaner do
   @w_ns ~c"http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 
   @type ns_mapping :: {prefix :: charlist(), uri :: charlist()}
+  @type warning :: %{
+          required(:type) => :other_revision_markup,
+          required(:element) => String.t(),
+          required(:count) => non_neg_integer()
+        }
 
   @spec accept_tracked_changes_xml(binary()) :: {:ok, binary()} | {:error, term()}
   def accept_tracked_changes_xml(xml) when is_binary(xml) do
+    case do_accept_tracked_changes_xml(xml, :no_warnings) do
+      {:ok, cleaned_xml, _warnings} -> {:ok, cleaned_xml}
+      {:error, _} = error -> error
+    end
+  end
+
+  @spec accept_tracked_changes_xml_with_warnings(binary()) ::
+          {:ok, binary(), [warning()]} | {:error, term()}
+  def accept_tracked_changes_xml_with_warnings(xml) when is_binary(xml) do
+    case do_accept_tracked_changes_xml(xml, :with_warnings) do
+      {:ok, cleaned_xml, warnings} -> {:ok, cleaned_xml, warnings}
+      {:error, _} = error -> error
+    end
+  end
+
+  defp do_accept_tracked_changes_xml(xml, warning_mode) when is_binary(xml) do
     prolog = extract_xml_prolog(xml)
 
     initial_state = %{
-      skip_del_depth: 0,
-      unwrap_ins_depth: 0,
+      skip_depth: 0,
       pending_ns: [],
       # Namespace mappings declared on elements we suppress (e.g. <w:ins>) need
       # to be re-declared somewhere in the output. We conservatively re-declare
       # them on every element we DO emit while they are in-scope.
       orphan_ns: [],
       in_cdata: false,
-      out: []
+      out: [],
+      rev_counts: %{},
+      warning_mode: warning_mode
     }
 
     opts = [
@@ -36,7 +58,7 @@ defmodule Redlines.DOCX.Cleaner do
           |> Enum.reverse()
           |> IO.iodata_to_binary()
 
-        {:ok, prolog <> body}
+        {:ok, prolog <> body, build_warnings(state)}
 
       {:fatal_error, _loc, reason, _tags, _state} ->
         {:error, {:xml_parse_error, to_string(reason)}}
@@ -50,92 +72,76 @@ defmodule Redlines.DOCX.Cleaner do
   end
 
   @doc false
-  def handle_event(event, _loc, state) do
-    case event do
-      :startDocument ->
-        state
+  def handle_event(:startDocument, _loc, state), do: state
+  def handle_event(:endDocument, _loc, state), do: state
 
-      :endDocument ->
-        state
-
-      {:startPrefixMapping, prefix, uri} ->
-        # These mappings belong to the *next* startElement event.
-        %{state | pending_ns: [{prefix, uri} | state.pending_ns]}
-
-      {:endPrefixMapping, prefix} ->
-        # Only orphan mappings are tracked here; regular mappings were already
-        # emitted on their original element.
-        %{state | orphan_ns: pop_orphan_ns(state.orphan_ns, prefix)}
-
-      {:startElement, uri, local, qname, attrs} ->
-        handle_start_element(uri, local, qname, attrs, state)
-
-      {:endElement, uri, local, qname} ->
-        handle_end_element(uri, local, qname, state)
-
-      {:characters, chars} ->
-        handle_characters(chars, state)
-
-      {:ignorableWhitespace, chars} ->
-        handle_characters(chars, state)
-
-      {:processingInstruction, target, data} ->
-        if state.skip_del_depth > 0 do
-          state
-        else
-          pi = "<?" <> to_string(target) <> " " <> to_string(data) <> "?>"
-          %{state | out: [pi | state.out]}
-        end
-
-      {:comment, comment} ->
-        if state.skip_del_depth > 0 do
-          state
-        else
-          c = "<!--" <> to_string(comment) <> "-->"
-          %{state | out: [c | state.out]}
-        end
-
-      :startCDATA ->
-        if state.skip_del_depth > 0 do
-          state
-        else
-          %{state | in_cdata: true, out: ["<![CDATA[" | state.out]}
-        end
-
-      :endCDATA ->
-        if state.skip_del_depth > 0 do
-          state
-        else
-          %{state | in_cdata: false, out: ["]]>" | state.out]}
-        end
-
-      _other ->
-        state
-    end
+  def handle_event({:startPrefixMapping, prefix, uri}, _loc, state) do
+    # These mappings belong to the *next* startElement event.
+    %{state | pending_ns: [{prefix, uri} | state.pending_ns]}
   end
+
+  def handle_event({:endPrefixMapping, prefix}, _loc, state) do
+    # Only orphan mappings are tracked here; regular mappings were already
+    # emitted on their original element.
+    %{state | orphan_ns: pop_orphan_ns(state.orphan_ns, prefix)}
+  end
+
+  def handle_event({:startElement, uri, local, qname, attrs}, _loc, state),
+    do: handle_start_element(uri, local, qname, attrs, state)
+
+  def handle_event({:endElement, uri, local, qname}, _loc, state),
+    do: handle_end_element(uri, local, qname, state)
+
+  def handle_event({:characters, chars}, _loc, state),
+    do: handle_characters(chars, state)
+
+  def handle_event({:ignorableWhitespace, chars}, _loc, state),
+    do: handle_characters(chars, state)
+
+  def handle_event({:processingInstruction, target, data}, _loc, state),
+    do: handle_processing_instruction(target, data, state)
+
+  def handle_event({:comment, comment}, _loc, state),
+    do: handle_comment(comment, state)
+
+  def handle_event(:startCDATA, _loc, state),
+    do: handle_start_cdata(state)
+
+  def handle_event(:endCDATA, _loc, state),
+    do: handle_end_cdata(state)
+
+  def handle_event(_other, _loc, state), do: state
 
   defp handle_start_element(uri, local, qname, attrs, state) do
     # Always clear pending_ns; it is only for the immediately following element.
     pending_ns = Enum.reverse(state.pending_ns)
     state = %{state | pending_ns: []}
 
+    local_str = to_string(local)
+    state = maybe_track_revision_element(uri, local_str, state)
+
     cond do
-      # If we're already skipping deletions, just keep skipping. Track nesting.
-      state.skip_del_depth > 0 ->
-        if w_element?(uri, local, ~c"del") do
-          %{state | skip_del_depth: state.skip_del_depth + 1}
+      # If we're already skipping, stay in skip mode. Track nesting of "skipper" elements.
+      state.skip_depth > 0 ->
+        if skipper_element?(uri, local_str) do
+          %{state | skip_depth: state.skip_depth + 1}
         else
           state
         end
 
-      # Start skipping a deletion subtree entirely.
-      w_element?(uri, local, ~c"del") ->
-        %{state | skip_del_depth: state.skip_del_depth + 1}
+      # Elements whose content should be deleted when accepting revisions.
+      delete_wrapper_element?(uri, local_str) ->
+        %{state | skip_depth: state.skip_depth + 1}
 
-      # Unwrap insertions: drop the <w:ins> tag but keep its children.
-      w_element?(uri, local, ~c"ins") ->
+      # Elements that record revision history (e.g., formatting changes) or
+      # revision markers (e.g., range boundaries) that we drop.
+      purge_revision_element?(uri, local_str) ->
+        %{state | skip_depth: state.skip_depth + 1}
+
+      # Elements whose content should be kept, but whose wrapper tag should be removed.
+      unwrap_element?(uri, local_str) ->
         orphan_ns = state.orphan_ns ++ pending_ns
-        %{state | unwrap_ins_depth: state.unwrap_ins_depth + 1, orphan_ns: orphan_ns}
+        %{state | orphan_ns: orphan_ns}
 
       true ->
         # For normal elements, emit a start tag and re-declare any "orphaned"
@@ -148,20 +154,19 @@ defmodule Redlines.DOCX.Cleaner do
   end
 
   defp handle_end_element(uri, local, qname, state) do
+    local_str = to_string(local)
+
     cond do
-      # While skipping deletions, suppress everything but keep nesting balanced.
-      state.skip_del_depth > 0 ->
-        if w_element?(uri, local, ~c"del") do
-          %{state | skip_del_depth: max(state.skip_del_depth - 1, 0)}
+      # While skipping, suppress everything but keep nesting balanced.
+      state.skip_depth > 0 ->
+        if skipper_element?(uri, local_str) do
+          %{state | skip_depth: max(state.skip_depth - 1, 0)}
         else
           state
         end
 
-      w_element?(uri, local, ~c"del") ->
-        %{state | skip_del_depth: max(state.skip_del_depth - 1, 0)}
-
-      w_element?(uri, local, ~c"ins") ->
-        %{state | unwrap_ins_depth: max(state.unwrap_ins_depth - 1, 0)}
+      unwrap_element?(uri, local_str) ->
+        state
 
       true ->
         name = qname_to_string(qname)
@@ -170,7 +175,7 @@ defmodule Redlines.DOCX.Cleaner do
   end
 
   defp handle_characters(chars, state) do
-    if state.skip_del_depth > 0 do
+    if state.skip_depth > 0 do
       state
     else
       bin = to_string(chars)
@@ -186,8 +191,75 @@ defmodule Redlines.DOCX.Cleaner do
     end
   end
 
-  defp w_element?(uri, local, expected_local) do
-    uri == @w_ns and local == expected_local
+  defp handle_processing_instruction(_target, _data, %{skip_depth: d} = state) when d > 0,
+    do: state
+
+  defp handle_processing_instruction(target, data, state) do
+    pi = "<?" <> to_string(target) <> " " <> to_string(data) <> "?>"
+    %{state | out: [pi | state.out]}
+  end
+
+  defp handle_comment(_comment, %{skip_depth: d} = state) when d > 0, do: state
+
+  defp handle_comment(comment, state) do
+    c = "<!--" <> to_string(comment) <> "-->"
+    %{state | out: [c | state.out]}
+  end
+
+  defp handle_start_cdata(%{skip_depth: d} = state) when d > 0, do: state
+  defp handle_start_cdata(state), do: %{state | in_cdata: true, out: ["<![CDATA[" | state.out]}
+
+  defp handle_end_cdata(%{skip_depth: d} = state) when d > 0, do: state
+  defp handle_end_cdata(state), do: %{state | in_cdata: false, out: ["]]>" | state.out]}
+
+  defp delete_wrapper_element?(uri, local_str) do
+    uri == @w_ns and local_str in ["del", "moveFrom"]
+  end
+
+  defp unwrap_element?(uri, local_str) do
+    uri == @w_ns and local_str in ["ins", "moveTo"]
+  end
+
+  defp purge_revision_element?(uri, local_str) do
+    uri == @w_ns and (String.ends_with?(local_str, "Change") or revision_range_marker?(local_str))
+  end
+
+  defp revision_range_marker?(local_str) do
+    down = String.downcase(local_str)
+
+    (String.ends_with?(down, "rangestart") or String.ends_with?(down, "rangeend")) and
+      (String.contains?(down, "ins") or String.contains?(down, "del") or
+         String.contains?(down, "movefrom") or String.contains?(down, "moveto"))
+  end
+
+  defp skipper_element?(uri, local_str) do
+    delete_wrapper_element?(uri, local_str) or purge_revision_element?(uri, local_str)
+  end
+
+  defp maybe_track_revision_element(uri, local_str, state) do
+    if revision_related?(uri, local_str) do
+      counts = Map.update(state.rev_counts, local_str, 1, &(&1 + 1))
+      %{state | rev_counts: counts}
+    else
+      state
+    end
+  end
+
+  defp revision_related?(uri, local_str) do
+    uri == @w_ns and
+      (local_str in ["ins", "del", "moveFrom", "moveTo"] or String.ends_with?(local_str, "Change") or
+         revision_range_marker?(local_str))
+  end
+
+  defp build_warnings(%{warning_mode: :no_warnings}), do: []
+
+  defp build_warnings(%{warning_mode: :with_warnings, rev_counts: counts}) do
+    counts
+    |> Enum.reject(fn {k, _v} -> k in ["ins", "del"] end)
+    |> Enum.sort_by(fn {_k, v} -> -v end)
+    |> Enum.map(fn {k, v} ->
+      %{type: :other_revision_markup, element: "w:" <> k, count: v}
+    end)
   end
 
   defp orphan_ns_to_emit(orphan_ns, pending_ns) do

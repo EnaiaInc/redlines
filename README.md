@@ -15,7 +15,7 @@ Add `:redlines` to your dependencies:
 ```elixir
 def deps do
   [
-    {:redlines, "~> 0.7.0"}
+    {:redlines, "~> 0.7.1"}
   ]
 end
 ```
@@ -34,6 +34,9 @@ PDF support is included out of the box via the precompiled [`pdf_redlines`](http
 # DOCX - accept track changes and get cleaned DOCX bytes
 {:ok, cleaned_docx} = Redlines.clean_docx("contract_v2.docx")
 File.write!("contract_v2_clean.docx", cleaned_docx)
+
+# DOCX - accept track changes and get informational warnings about other revision markup seen
+{:ok, cleaned_docx, warnings} = Redlines.clean_docx_with_warnings("contract_v2.docx")
 
 # PDF
 {:ok, %Redlines.Result{changes: changes, source: :pdf}} =

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.1
+
+- DOCX cleaning now also accepts moved text (`<w:moveFrom>`, `<w:moveTo>`) and drops revision history/markers (e.g. `*PrChange`, `*RangeStart/*RangeEnd`).
+- Added warning-returning helpers: `Redlines.clean_docx_with_warnings/2`, `Redlines.clean_docx_binary_with_warnings/2`.
+
 ## 0.7.0
 
 - Added DOCX cleaning helpers to accept track changes (remove `<w:del>` and unwrap `<w:ins>`) and return a cleaned DOCX: `Redlines.clean_docx/2`, `Redlines.clean_docx_binary/2`.

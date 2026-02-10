@@ -48,6 +48,9 @@ defmodule Redlines do
   This removes deletions (`<w:del>…</w:del>`) and unwraps insertions
   (`<w:ins>…</w:ins>`) in `word/document.xml` by default.
 
+  This cleaner also drops other WordprocessingML revision markup where possible
+  (e.g. moved text and `*PrChange` property change history).
+
   ## Options
 
   - `:parts` - Zip entry names to clean (default `["word/document.xml"]`)
@@ -58,11 +61,35 @@ defmodule Redlines do
   end
 
   @doc """
+  Like `clean_docx/2`, but also returns informational warnings about revision
+  markup that was present while cleaning.
+
+  See `Redlines.DOCX.clean_with_warnings/2`.
+  """
+  @spec clean_docx_with_warnings(Path.t(), keyword()) ::
+          {:ok, binary(), [DOCX.clean_warning()]} | {:error, term()}
+  def clean_docx_with_warnings(docx_path, opts \\ []) when is_binary(docx_path) do
+    DOCX.clean_with_warnings(docx_path, opts)
+  end
+
+  @doc """
   Like `clean_docx/2`, but accepts raw DOCX bytes.
   """
   @spec clean_docx_binary(binary(), keyword()) :: {:ok, binary()} | {:error, term()}
   def clean_docx_binary(docx_binary, opts \\ []) when is_binary(docx_binary) do
     DOCX.clean_binary(docx_binary, opts)
+  end
+
+  @doc """
+  Like `clean_docx_binary/2`, but also returns informational warnings about revision
+  markup that was present while cleaning.
+
+  See `Redlines.DOCX.clean_binary_with_warnings/2`.
+  """
+  @spec clean_docx_binary_with_warnings(binary(), keyword()) ::
+          {:ok, binary(), [DOCX.clean_warning()]} | {:error, term()}
+  def clean_docx_binary_with_warnings(docx_binary, opts \\ []) when is_binary(docx_binary) do
+    DOCX.clean_binary_with_warnings(docx_binary, opts)
   end
 
   @doc """
