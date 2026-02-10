@@ -173,7 +173,7 @@ defmodule Redlines.DOCXCleanTest do
     refute cleaned_document_xml =~ "RangeEnd"
   end
 
-  test "clean_binary_with_warnings/2 returns revision-markup counts beyond <w:ins>/<w:del>" do
+  test "clean_binary_with_warnings/2 returns revision-markup counts (including <w:ins>/<w:del>)" do
     xml = """
     <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
     <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
@@ -187,6 +187,8 @@ defmodule Redlines.DOCXCleanTest do
             </w:rPr>
             <w:t>Keep</w:t>
           </w:r>
+          <w:ins><w:r><w:t>Inserted</w:t></w:r></w:ins>
+          <w:del><w:r><w:delText>Deleted</w:delText></w:r></w:del>
         </w:p>
       </w:body>
     </w:document>
@@ -197,8 +199,19 @@ defmodule Redlines.DOCXCleanTest do
     assert {:ok, _cleaned_docx, warnings} = DOCX.clean_binary_with_warnings(docx_binary)
 
     assert Enum.any?(warnings, fn w ->
-             w.type == :other_revision_markup and w.part == "word/document.xml" and
-               w.element == "w:rPrChange" and w.count == 1
+             w.type == :revision_markup and w.part == "word/document.xml" and
+               w.element == "w:rPrChange" and
+               w.count == 1
+           end)
+
+    assert Enum.any?(warnings, fn w ->
+             w.type == :revision_markup and w.part == "word/document.xml" and w.element == "w:ins" and
+               w.count == 1
+           end)
+
+    assert Enum.any?(warnings, fn w ->
+             w.type == :revision_markup and w.part == "word/document.xml" and w.element == "w:del" and
+               w.count == 1
            end)
   end
 

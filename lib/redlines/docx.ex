@@ -9,7 +9,7 @@ defmodule Redlines.DOCX do
   require Logger
 
   @type clean_warning :: %{
-          required(:type) => :other_revision_markup,
+          required(:type) => :revision_markup,
           required(:part) => String.t(),
           required(:element) => String.t(),
           required(:count) => non_neg_integer()

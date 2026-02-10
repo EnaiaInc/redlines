@@ -6,7 +6,7 @@ defmodule Redlines.DOCX.Cleaner do
 
   @type ns_mapping :: {prefix :: charlist(), uri :: charlist()}
   @type warning :: %{
-          required(:type) => :other_revision_markup,
+          required(:type) => :revision_markup,
           required(:element) => String.t(),
           required(:count) => non_neg_integer()
         }
@@ -255,10 +255,9 @@ defmodule Redlines.DOCX.Cleaner do
 
   defp build_warnings(%{warning_mode: :with_warnings, rev_counts: counts}) do
     counts
-    |> Enum.reject(fn {k, _v} -> k in ["ins", "del"] end)
     |> Enum.sort_by(fn {_k, v} -> -v end)
     |> Enum.map(fn {k, v} ->
-      %{type: :other_revision_markup, element: "w:" <> k, count: v}
+      %{type: :revision_markup, element: "w:" <> k, count: v}
     end)
   end
 
