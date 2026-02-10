@@ -43,6 +43,29 @@ defmodule Redlines do
   end
 
   @doc """
+  Accept tracked changes in a DOCX and return the cleaned DOCX bytes.
+
+  This removes deletions (`<w:del>…</w:del>`) and unwraps insertions
+  (`<w:ins>…</w:ins>`) in `word/document.xml` by default.
+
+  ## Options
+
+  - `:parts` - Zip entry names to clean (default `["word/document.xml"]`)
+  """
+  @spec clean_docx(Path.t(), keyword()) :: {:ok, binary()} | {:error, term()}
+  def clean_docx(docx_path, opts \\ []) when is_binary(docx_path) do
+    DOCX.clean(docx_path, opts)
+  end
+
+  @doc """
+  Like `clean_docx/2`, but accepts raw DOCX bytes.
+  """
+  @spec clean_docx_binary(binary(), keyword()) :: {:ok, binary()} | {:error, term()}
+  def clean_docx_binary(docx_binary, opts \\ []) when is_binary(docx_binary) do
+    DOCX.clean_binary(docx_binary, opts)
+  end
+
+  @doc """
   Format tracked changes for LLM prompts.
 
   Accepts:

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.0
+
+- Added DOCX cleaning helpers to accept track changes (remove `<w:del>` and unwrap `<w:ins>`) and return a cleaned DOCX: `Redlines.clean_docx/2`, `Redlines.clean_docx_binary/2`.
+
 ## 0.6.1
 
 - Bump `pdf_redlines` to `~> 0.7.1` (fixes precompiled NIF checksum mismatch)

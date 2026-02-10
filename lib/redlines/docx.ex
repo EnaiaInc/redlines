@@ -4,6 +4,7 @@ defmodule Redlines.DOCX do
   """
 
   alias Redlines.Change
+  alias Redlines.DOCX.Cleaner
 
   require Logger
 
@@ -33,6 +34,43 @@ defmodule Redlines.DOCX do
   rescue
     e ->
       Logger.error("Error extracting DOCX track changes: #{Exception.message(e)}")
+      {:error, e}
+  end
+
+  @doc """
+  Accept tracked changes in a DOCX and return the cleaned DOCX bytes.
+
+  This rewrites XML parts inside the DOCX zip (by default just `word/document.xml`)
+  by removing deletions (`<w:del>…</w:del>`) and unwrapping insertions
+  (`<w:ins>…</w:ins>`).
+
+  ## Options
+
+  - `:parts` - Zip entry names to clean (default `["word/document.xml"]`)
+  """
+  @spec clean(Path.t(), keyword()) :: {:ok, binary()} | {:error, term()}
+  def clean(docx_path, opts \\ []) when is_binary(docx_path) do
+    with {:ok, docx_binary} <- File.read(docx_path) do
+      clean_binary(docx_binary, opts)
+    end
+  end
+
+  @doc """
+  Like `clean/2`, but accepts raw DOCX bytes.
+  """
+  @spec clean_binary(binary(), keyword()) :: {:ok, binary()} | {:error, term()}
+  def clean_binary(docx_binary, opts \\ []) when is_binary(docx_binary) do
+    parts = Keyword.get(opts, :parts, ["word/document.xml"])
+    parts_set = MapSet.new(parts)
+
+    with {:ok, entries} <- :zip.unzip(docx_binary, [:memory]),
+         {:ok, cleaned_entries} <- clean_entries(entries, parts_set),
+         {:ok, {_filename, cleaned_binary}} <-
+           :zip.create(~c"clean.docx", cleaned_entries, [:memory]) do
+      {:ok, cleaned_binary}
+    end
+  rescue
+    e ->
       {:error, e}
   end
 
@@ -154,6 +192,28 @@ defmodule Redlines.DOCX do
         id: change.id,
         text: text
       }
+    end
+  end
+
+  defp clean_entries(entries, parts_set) do
+    Enum.reduce_while(entries, {:ok, []}, fn {filename, content}, {:ok, acc} ->
+      entry_name = to_string(filename)
+
+      if MapSet.member?(parts_set, entry_name) do
+        case Cleaner.accept_tracked_changes_xml(content) do
+          {:ok, cleaned_xml} ->
+            {:cont, {:ok, [{filename, cleaned_xml} | acc]}}
+
+          {:error, reason} ->
+            {:halt, {:error, {:xml_clean_error, entry_name, reason}}}
+        end
+      else
+        {:cont, {:ok, [{filename, content} | acc]}}
+      end
+    end)
+    |> case do
+      {:ok, acc} -> {:ok, Enum.reverse(acc)}
+      other -> other
     end
   end
 end

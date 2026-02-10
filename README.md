@@ -15,7 +15,7 @@ Add `:redlines` to your dependencies:
 ```elixir
 def deps do
   [
-    {:redlines, "~> 0.6.0"}
+    {:redlines, "~> 0.7.0"}
   ]
 end
 ```
@@ -30,6 +30,10 @@ PDF support is included out of the box via the precompiled [`pdf_redlines`](http
 # DOCX - extracts <w:ins> and <w:del> from word/document.xml
 {:ok, %Redlines.Result{changes: changes, source: :docx}} =
   Redlines.extract("contract_v2.docx")
+
+# DOCX - accept track changes and get cleaned DOCX bytes
+{:ok, cleaned_docx} = Redlines.clean_docx("contract_v2.docx")
+File.write!("contract_v2_clean.docx", cleaned_docx)
 
 # PDF
 {:ok, %Redlines.Result{changes: changes, source: :pdf}} =
@@ -81,12 +85,6 @@ Options:
 - `:max_len` - Truncation length for long text (default `150`)
 
 Accepts a `Redlines.Result`, a list of `Redlines.Change` structs, a raw DOCX track-changes map, or a list of PDF redline entries.
-
-## Performance
-
-PDF extraction uses a precompiled Rust NIF and finishes under 700 ms even on
-large scanned documents (35 MB+). DOCX parsing is pure Elixir XML and is
-effectively instant.
 
 ## Performance
 
