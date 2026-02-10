@@ -4,8 +4,16 @@ defmodule Redlines.DOCX do
   """
 
   alias Redlines.Change
+  alias Redlines.DOCX.Cleaner
 
   require Logger
+
+  @type clean_warning :: %{
+          required(:type) => :revision_markup,
+          required(:part) => String.t(),
+          required(:element) => String.t(),
+          required(:count) => non_neg_integer()
+        }
 
   @doc """
   Extract raw DOCX track changes.
@@ -33,6 +41,85 @@ defmodule Redlines.DOCX do
   rescue
     e ->
       Logger.error("Error extracting DOCX track changes: #{Exception.message(e)}")
+      {:error, e}
+  end
+
+  @doc """
+  Accept tracked changes in a DOCX and return the cleaned DOCX bytes.
+
+  This rewrites XML parts inside the DOCX zip (by default just `word/document.xml`)
+  by removing deletions (`<w:del>…</w:del>`) and unwrapping insertions
+  (`<w:ins>…</w:ins>`).
+
+  ## Options
+
+  - `:parts` - Zip entry names to clean (default `["word/document.xml"]`)
+  """
+  @spec clean(Path.t(), keyword()) :: {:ok, binary()} | {:error, term()}
+  def clean(docx_path, opts \\ []) when is_binary(docx_path) do
+    with {:ok, docx_binary} <- File.read(docx_path) do
+      clean_binary(docx_binary, opts)
+    end
+  end
+
+  @doc """
+  Like `clean/2`, but accepts raw DOCX bytes.
+  """
+  @spec clean_binary(binary(), keyword()) :: {:ok, binary()} | {:error, term()}
+  def clean_binary(docx_binary, opts \\ []) when is_binary(docx_binary) do
+    parts = Keyword.get(opts, :parts, ["word/document.xml"])
+    parts_set = MapSet.new(parts)
+
+    with {:ok, entries} <- :zip.unzip(docx_binary, [:memory]),
+         {:ok, cleaned_entries} <- clean_entries(entries, parts_set),
+         {:ok, {_filename, cleaned_binary}} <-
+           :zip.create(~c"clean.docx", cleaned_entries, [:memory]) do
+      {:ok, cleaned_binary}
+    end
+  rescue
+    e ->
+      {:error, e}
+  end
+
+  @doc """
+  Like `clean/2`, but also returns informational warnings about revision markup
+  that was present while cleaning.
+
+  Each warning includes the zip `:part` (e.g. `"word/document.xml"`), an `:element`
+  (e.g. `"w:rPrChange"`) and a `:count`.
+
+  ## Options
+
+  - `:parts` - Zip entry names to clean (default `["word/document.xml"]`)
+  """
+  @spec clean_with_warnings(Path.t(), keyword()) ::
+          {:ok, binary(), [clean_warning()]} | {:error, term()}
+  def clean_with_warnings(docx_path, opts \\ []) when is_binary(docx_path) do
+    with {:ok, docx_binary} <- File.read(docx_path) do
+      clean_binary_with_warnings(docx_binary, opts)
+    end
+  end
+
+  @doc """
+  Like `clean_binary/2`, but also returns informational warnings about revision
+  markup that was present while cleaning.
+
+  See `clean_with_warnings/2`.
+  """
+  @spec clean_binary_with_warnings(binary(), keyword()) ::
+          {:ok, binary(), [clean_warning()]} | {:error, term()}
+  def clean_binary_with_warnings(docx_binary, opts \\ []) when is_binary(docx_binary) do
+    parts = Keyword.get(opts, :parts, ["word/document.xml"])
+    parts_set = MapSet.new(parts)
+
+    with {:ok, entries} <- :zip.unzip(docx_binary, [:memory]),
+         {:ok, cleaned_entries, warnings} <- clean_entries_with_warnings(entries, parts_set),
+         {:ok, {_filename, cleaned_binary}} <-
+           :zip.create(~c"clean.docx", cleaned_entries, [:memory]) do
+      {:ok, cleaned_binary, warnings}
+    end
+  rescue
+    e ->
       {:error, e}
   end
 
@@ -154,6 +241,56 @@ defmodule Redlines.DOCX do
         id: change.id,
         text: text
       }
+    end
+  end
+
+  defp clean_entries(entries, parts_set) do
+    Enum.reduce_while(entries, {:ok, []}, fn {filename, content}, {:ok, acc} ->
+      clean_entry(filename, content, parts_set, acc)
+    end)
+    |> case do
+      {:ok, acc} -> {:ok, Enum.reverse(acc)}
+      other -> other
+    end
+  end
+
+  defp clean_entry(filename, content, parts_set, acc) do
+    entry_name = to_string(filename)
+
+    if MapSet.member?(parts_set, entry_name) do
+      case Cleaner.accept_tracked_changes_xml(content) do
+        {:ok, cleaned_xml} -> {:cont, {:ok, [{filename, cleaned_xml} | acc]}}
+        {:error, reason} -> {:halt, {:error, {:xml_clean_error, entry_name, reason}}}
+      end
+    else
+      {:cont, {:ok, [{filename, content} | acc]}}
+    end
+  end
+
+  defp clean_entries_with_warnings(entries, parts_set) do
+    Enum.reduce_while(entries, {:ok, [], []}, fn {filename, content}, {:ok, acc, warnings} ->
+      clean_entry_with_warnings(filename, content, parts_set, acc, warnings)
+    end)
+    |> case do
+      {:ok, acc, warnings} -> {:ok, Enum.reverse(acc), Enum.reverse(warnings)}
+      other -> other
+    end
+  end
+
+  defp clean_entry_with_warnings(filename, content, parts_set, acc, warnings) do
+    entry_name = to_string(filename)
+
+    if MapSet.member?(parts_set, entry_name) do
+      case Cleaner.accept_tracked_changes_xml_with_warnings(content) do
+        {:ok, cleaned_xml, file_warnings} ->
+          file_warnings = Enum.map(file_warnings, &Map.put(&1, :part, entry_name))
+          {:cont, {:ok, [{filename, cleaned_xml} | acc], file_warnings ++ warnings}}
+
+        {:error, reason} ->
+          {:halt, {:error, {:xml_clean_error, entry_name, reason}}}
+      end
+    else
+      {:cont, {:ok, [{filename, content} | acc], warnings}}
     end
   end
 end
