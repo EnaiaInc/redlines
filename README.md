@@ -15,14 +15,13 @@ Add `:redlines` to your dependencies:
 ```elixir
 def deps do
   [
-    {:redlines, "~> 0.9.0"},
-    {:doc_redlines, "~> 0.5.0", optional: true}
+    {:redlines, "~> 0.9.2"}
   ]
 end
 ```
 
 PDF support is included out of the box via the precompiled [`pdf_redlines`](https://hex.pm/packages/pdf_redlines) NIF -- no Rust toolchain required.
-DOC support is available when [`doc_redlines`](https://hex.pm/packages/doc_redlines) is present.
+DOC support is included via the bundled [`doc_redlines`](https://hex.pm/packages/doc_redlines) dependency.
 
 ## Usage
 

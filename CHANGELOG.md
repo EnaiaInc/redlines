@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.2
+
+- Bump required `doc_redlines` dependency to `~> 0.6.0`.
+- Refresh package metadata after the `doc_redlines 0.6.0` release.
+
 ## 0.9.0
 
 - Bumped version for the public release with legacy `.doc` extraction support via `doc_redlines`.

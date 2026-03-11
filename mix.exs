@@ -1,7 +1,7 @@
 defmodule Redlines.MixProject do
   use Mix.Project
 
-  @version "0.9.1"
+  @version "0.9.2"
   @source_url "https://github.com/EnaiaInc/redlines"
 
   def project do
@@ -33,7 +33,7 @@ defmodule Redlines.MixProject do
   defp deps do
     doc_redlines_dep =
       case System.get_env("DOC_REDLINES_PATH") do
-        nil -> {:doc_redlines, "~> 0.5.0"}
+        nil -> {:doc_redlines, "~> 0.6.0"}
         path -> {:doc_redlines, path: path}
       end
 
