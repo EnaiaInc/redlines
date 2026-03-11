@@ -19,8 +19,6 @@ defmodule Redlines.DOC do
     else
       {:error, _reason} = error -> error
       :error -> {:error, :doc_redlines_not_available}
-      false -> {:error, :doc_redlines_not_available}
-      other -> {:error, {:unexpected_doc_redlines_result, other}}
     end
   end
 
