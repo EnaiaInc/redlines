@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.9.0
+
+- Bumped version for the public release with legacy `.doc` extraction support via `doc_redlines`.
+- Added a synthetic `.doc` fixture for local validation (non-proprietary).
+
+## 0.8.0
+
+- Added optional legacy `.doc` extraction support via `doc_redlines` (`Redlines.extract/2` now supports `:doc` and `.doc` inference).
+- Added `Redlines.DOC` adapter to normalize `.doc` redline output into `Redlines.Change`.
+- Added a synthetic `.doc` fixture for local validation.
+
 ## 0.7.1
 
 - Note: `0.7.0` was not published; these changes shipped as `0.7.1`.

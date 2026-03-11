@@ -8,7 +8,7 @@ defmodule Redlines.Result do
   @enforce_keys [:changes, :source]
   defstruct changes: [], source: nil
 
-  @type source :: :pdf | :docx
+  @type source :: :pdf | :docx | :doc
 
   @type t :: %__MODULE__{
           source: source(),

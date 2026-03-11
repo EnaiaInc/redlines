@@ -1,7 +1,7 @@
 defmodule Redlines.MixProject do
   use Mix.Project
 
-  @version "0.7.1"
+  @version "0.9.0"
   @source_url "https://github.com/EnaiaInc/redlines"
 
   def project do
@@ -35,6 +35,7 @@ defmodule Redlines.MixProject do
       {:sweet_xml, "~> 0.7"},
       {:pdf_redlines, "~> 0.7.1"},
       {:doc_redlines, path: "../doc_redlines"},
+      {:rustler, ">= 0.0.0", optional: true},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:ex_doc, "~> 0.39.3", only: :dev, runtime: false},

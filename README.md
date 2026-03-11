@@ -4,9 +4,9 @@
 
 # Redlines
 
-Extract and normalize tracked changes ("redlines") from DOCX and PDF documents into a single unified shape.
+Extract and normalize tracked changes ("redlines") from DOC, DOCX, and PDF documents into a single unified shape.
 
-Redlines parses `<w:ins>` and `<w:del>` elements from DOCX files and uses [`pdf_redlines`](https://hex.pm/packages/pdf_redlines) (precompiled Rust/MuPDF NIF) for PDF extraction. All changes are normalized into `Redlines.Change` structs regardless of source format.
+Redlines parses legacy `.doc` changes via [`doc_redlines`](https://hex.pm/packages/doc_redlines), parses `<w:ins>` and `<w:del>` elements from DOCX files, and uses [`pdf_redlines`](https://hex.pm/packages/pdf_redlines) (precompiled Rust/MuPDF NIF) for PDF extraction. All changes are normalized into `Redlines.Change` structs regardless of source format.
 
 ## Installation
 
@@ -15,12 +15,14 @@ Add `:redlines` to your dependencies:
 ```elixir
 def deps do
   [
-    {:redlines, "~> 0.7.1"}
+    {:redlines, "~> 0.9.0"},
+    {:doc_redlines, "~> 0.5.0", optional: true}
   ]
 end
 ```
 
 PDF support is included out of the box via the precompiled [`pdf_redlines`](https://hex.pm/packages/pdf_redlines) NIF -- no Rust toolchain required.
+DOC support is available when [`doc_redlines`](https://hex.pm/packages/doc_redlines) is present.
 
 ## Usage
 
@@ -30,6 +32,10 @@ PDF support is included out of the box via the precompiled [`pdf_redlines`](http
 # DOCX - extracts <w:ins> and <w:del> from word/document.xml
 {:ok, %Redlines.Result{changes: changes, source: :docx}} =
   Redlines.extract("contract_v2.docx")
+
+# DOC - extracts tracked insertions/deletions from legacy Word binary format
+{:ok, %Redlines.Result{changes: changes, source: :doc}} =
+  Redlines.extract("contract_v2.doc")
 
 # DOCX - accept track changes and get cleaned DOCX bytes
 {:ok, cleaned_docx} = Redlines.clean_docx("contract_v2.docx")

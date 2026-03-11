@@ -4,20 +4,21 @@ defmodule Redlines do
 
   This library provides a single normalized shape (`Redlines.Change`) across:
 
+  - Legacy DOC track changes (via [`doc_redlines`](https://hex.pm/packages/doc_redlines))
   - DOCX track changes (`<w:ins>`, `<w:del>`)
   - PDFs with embedded tracked-changes markup (via [`pdf_redlines`](https://hex.pm/packages/pdf_redlines))
   """
 
-  alias Redlines.{Change, DOCX, Format, PDF, Result}
+  alias Redlines.{Change, DOC, DOCX, Format, PDF, Result}
 
-  @type doc_type :: :pdf | :docx
+  @type doc_type :: :pdf | :docx | :doc
 
   @doc """
   Extract tracked changes from a file path, inferring type from the extension.
 
   ## Options
 
-  - `:type` - Override the inferred type (`:pdf` or `:docx`)
+  - `:type` - Override the inferred type (`:pdf`, `:docx`, or `:doc`)
   - `:pdf_opts` - Options forwarded to `PDFRedlines` (only when extracting PDFs)
   """
   @spec extract(Path.t(), keyword()) :: {:ok, Result.t()} | {:error, term()}
@@ -28,6 +29,11 @@ defmodule Redlines do
       :docx ->
         with {:ok, track_changes} <- DOCX.extract_track_changes(path) do
           {:ok, %Result{source: :docx, changes: DOCX.to_changes(track_changes)}}
+        end
+
+      :doc ->
+        with {:ok, redlines} <- DOC.extract_redlines(path) do
+          {:ok, %Result{source: :doc, changes: DOC.to_changes(redlines)}}
         end
 
       :pdf ->
@@ -111,6 +117,7 @@ defmodule Redlines do
   @spec infer_type(Path.t()) :: doc_type() | :unknown
   def infer_type(path) when is_binary(path) do
     case Path.extname(path) |> String.downcase() do
+      ".doc" -> :doc
       ".pdf" -> :pdf
       ".docx" -> :docx
       _ -> :unknown
