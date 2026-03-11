@@ -31,10 +31,16 @@ defmodule Redlines.MixProject do
 
   # Run "mix help deps" to learn about dependencies.
   defp deps do
+    doc_redlines_dep =
+      case System.get_env("DOC_REDLINES_PATH") do
+        nil -> {:doc_redlines, "~> 0.5.0", optional: true}
+        path -> {:doc_redlines, path: path}
+      end
+
     [
       {:sweet_xml, "~> 0.7"},
       {:pdf_redlines, "~> 0.7.1"},
-      {:doc_redlines, path: "../doc_redlines"},
+      doc_redlines_dep,
       {:rustler, ">= 0.0.0", optional: true},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
