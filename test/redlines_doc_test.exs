@@ -63,10 +63,7 @@ defmodule Redlines.DOCTest do
   end
 
   test "extracts from synthetic doc fixture when available" do
-    unless Code.ensure_loaded?(DocRedlines) do
-      IO.puts("Skipping doc fixture test: doc_redlines not available")
-      assert true
-    else
+    if Code.ensure_loaded?(DocRedlines) do
       fixture = Path.expand("fixtures/sample.doc", __DIR__)
       assert File.exists?(fixture)
 
@@ -74,6 +71,9 @@ defmodule Redlines.DOCTest do
                Redlines.extract(fixture)
 
       assert is_list(changes)
+    else
+      IO.puts("Skipping doc fixture test: doc_redlines not available")
+      assert true
     end
   end
 end

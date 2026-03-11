@@ -14,7 +14,7 @@ defmodule Redlines.DOC do
   @spec extract_redlines(Path.t()) :: {:ok, list()} | {:error, term()}
   def extract_redlines(path) when is_binary(path) do
     with :ok <- ensure_doc_redlines_loaded(),
-         {:ok, %{redlines: redlines}} <- apply(DocRedlines, :extract_redlines, [path]) do
+         {:ok, %{redlines: redlines}} <- DocRedlines.extract_redlines(path) do
       {:ok, redlines}
     else
       {:error, _reason} = error -> error
