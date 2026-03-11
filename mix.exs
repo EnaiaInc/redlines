@@ -34,6 +34,7 @@ defmodule Redlines.MixProject do
     [
       {:sweet_xml, "~> 0.7"},
       {:pdf_redlines, "~> 0.7.1"},
+      {:doc_redlines, path: "../doc_redlines"},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:ex_doc, "~> 0.39.3", only: :dev, runtime: false},
@@ -42,7 +43,7 @@ defmodule Redlines.MixProject do
   end
 
   defp description do
-    "Extract and normalize tracked changes (redlines) from DOCX and PDFs."
+    "Extract and normalize tracked changes (redlines) from DOC, DOCX, and PDFs."
   end
 
   defp package do
