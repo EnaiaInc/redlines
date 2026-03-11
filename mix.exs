@@ -33,7 +33,7 @@ defmodule Redlines.MixProject do
   defp deps do
     doc_redlines_dep =
       case System.get_env("DOC_REDLINES_PATH") do
-        nil -> {:doc_redlines, "~> 0.5.0", optional: true}
+        nil -> {:doc_redlines, "~> 0.5.0"}
         path -> {:doc_redlines, path: path}
       end
 
