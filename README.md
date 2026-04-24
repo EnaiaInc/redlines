@@ -6,7 +6,13 @@
 
 Extract and normalize tracked changes ("redlines") from DOC, DOCX, and PDF documents into a single unified shape.
 
-Redlines parses legacy `.doc` changes via [`doc_redlines`](https://hex.pm/packages/doc_redlines), parses `<w:ins>` and `<w:del>` elements from DOCX files, and uses [`pdf_redlines`](https://hex.pm/packages/pdf_redlines) (precompiled Rust/MuPDF NIF) for PDF extraction. All changes are normalized into `Redlines.Change` structs regardless of source format.
+Each format is handled by a dedicated backend:
+
+- **DOC** — legacy Word binary format, parsed by [`doc_redlines`](https://hex.pm/packages/doc_redlines) (precompiled Rust NIF).
+- **DOCX** — Office Open XML, parsed in pure Elixir by reading `word/document.xml` from the zip and extracting `<w:ins>` / `<w:del>` via `SweetXml`.
+- **PDF** — parsed by [`pdf_redlines`](https://hex.pm/packages/pdf_redlines) (precompiled Rust/MuPDF NIF), which detects strikethroughs and underlines drawn over text.
+
+All results are normalized into `Redlines.Change` structs regardless of source format. Neither Rust NIF requires a local Rust toolchain — precompiled binaries are fetched from GitHub Releases.
 
 ## Installation
 
@@ -20,36 +26,49 @@ def deps do
 end
 ```
 
-PDF support is included out of the box via the precompiled [`pdf_redlines`](https://hex.pm/packages/pdf_redlines) NIF -- no Rust toolchain required.
-DOC support is included via the bundled [`doc_redlines`](https://hex.pm/packages/doc_redlines) dependency.
+`doc_redlines` and `pdf_redlines` are pulled in transitively; both ship precompiled NIFs, so no Rust toolchain is required.
 
 ## Usage
 
 ### Extracting Changes
 
 ```elixir
-# DOCX - extracts <w:ins> and <w:del> from word/document.xml
-{:ok, %Redlines.Result{changes: changes, source: :docx}} =
-  Redlines.extract("contract_v2.docx")
-
-# DOC - extracts tracked insertions/deletions from legacy Word binary format
+# DOC — legacy Word binary format (delegates to doc_redlines)
 {:ok, %Redlines.Result{changes: changes, source: :doc}} =
   Redlines.extract("contract_v2.doc")
 
-# DOCX - accept track changes and get cleaned DOCX bytes
-{:ok, cleaned_docx} = Redlines.clean_docx("contract_v2.docx")
-File.write!("contract_v2_clean.docx", cleaned_docx)
+# DOCX — extracts <w:ins> and <w:del> from word/document.xml
+{:ok, %Redlines.Result{changes: changes, source: :docx}} =
+  Redlines.extract("contract_v2.docx")
 
-# DOCX - accept track changes and get informational warnings about other revision markup seen
-{:ok, cleaned_docx, warnings} = Redlines.clean_docx_with_warnings("contract_v2.docx")
-
-# PDF
+# PDF — detects strikethrough/underline markup (delegates to pdf_redlines)
 {:ok, %Redlines.Result{changes: changes, source: :pdf}} =
   Redlines.extract("contract_v2.pdf")
 
 # Override type inference
 {:ok, result} = Redlines.extract("document.bin", type: :docx)
+
+# Forward tuning options to pdf_redlines
+{:ok, result} = Redlines.extract("scan.pdf", pdf_opts: [red_r_min: 150])
 ```
+
+Type is inferred from the file extension (`.doc`, `.docx`, `.pdf`); pass `:type` to override.
+
+### Accepting DOCX Track Changes
+
+Four variants, covering path-vs-binary input and with/without warnings about other revision markup (moves, `*PrChange` property-change history):
+
+```elixir
+# Path input
+{:ok, cleaned_docx} = Redlines.clean_docx("contract_v2.docx")
+{:ok, cleaned_docx, warnings} = Redlines.clean_docx_with_warnings("contract_v2.docx")
+
+# Binary input
+{:ok, cleaned_docx} = Redlines.clean_docx_binary(docx_bytes)
+{:ok, cleaned_docx, warnings} = Redlines.clean_docx_binary_with_warnings(docx_bytes)
+```
+
+The cleaner removes `<w:del>…</w:del>`, unwraps `<w:ins>…</w:ins>`, and drops other WordprocessingML revision markup where possible. DOC and PDF do not have analogous cleaners — accepting tracked changes is a DOCX-only operation.
 
 ### The Change Struct
 
@@ -61,13 +80,23 @@ Every tracked change is normalized into a `Redlines.Change`:
   deletion: "removed text" | nil,
   insertion: "added text" | nil,
   location: "page 3, paragraph 2" | nil,
-  meta: %{"source" => "docx", "author" => "Alice", "date" => "2026-01-15T10:00:00Z"}
+  meta: %{"source" => "docx" | "doc" | "pdf", ...}
 }
 ```
 
-- `:deletion` - Text was removed
-- `:insertion` - Text was added
-- `:paired` - A deletion and insertion that represent a replacement
+- `:deletion` — text was removed (`deletion` populated)
+- `:insertion` — text was added (`insertion` populated)
+- `:paired` — a deletion and insertion representing a replacement (both populated)
+
+`meta` varies by source:
+
+| Source | Keys |
+| ------ | ---- |
+| `"doc"`  | `author`, `timestamp` (ISO-8601), `paragraph_index`, `char_offset`, `context` |
+| `"docx"` | `id`, `author`, `date` |
+| `"pdf"`  | (none beyond `source`) |
+
+DOC and PDF may emit `:paired` changes; DOCX only emits `:insertion` and `:deletion`.
 
 ### Formatting for LLM Prompts
 
@@ -89,17 +118,17 @@ Redlines.format_for_llm(changes)
 
 Options:
 
-- `:pair_separator` - Separator between deleted/inserted pairs (default `"→"`)
-- `:max_len` - Truncation length for long text (default `150`)
+- `:pair_separator` — separator between deleted/inserted pairs (default `"→"`)
+- `:max_len` — truncation length for long text (default `150`)
 
-Accepts a `Redlines.Result`, a list of `Redlines.Change` structs, a raw DOCX track-changes map, or a list of PDF redline entries.
+Accepts a `Redlines.Result`, a list of `Redlines.Change` structs, a raw DOCX track-changes map (`%{insertions: [...], deletions: [...]}`), or a list of `pdf_redlines` entries.
 
 ## Performance
 
-PDF extraction uses a precompiled Rust NIF and finishes under 700 ms even on
-large scanned documents (35 MB+). DOCX parsing is pure Elixir XML and is
-effectively instant.
+- **DOC** — Rust NIF on a dirty scheduler; typical documents complete in tens of milliseconds.
+- **DOCX** — pure Elixir XML parsing; effectively instant.
+- **PDF** — Rust/MuPDF NIF on a dirty scheduler; under 700 ms even on 35 MB scanned PDFs.
 
 ## License
 
-MIT - see [LICENSE](LICENSE).
+MIT — see [LICENSE](LICENSE).
