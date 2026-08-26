@@ -1,7 +1,7 @@
 defmodule Redlines.MixProject do
   use Mix.Project
 
-  @version "0.9.2"
+  @version "0.9.3"
   @source_url "https://github.com/EnaiaInc/redlines"
 
   def project do
@@ -33,18 +33,18 @@ defmodule Redlines.MixProject do
   defp deps do
     doc_redlines_dep =
       case System.get_env("DOC_REDLINES_PATH") do
-        nil -> {:doc_redlines, "~> 0.6.0"}
+        nil -> {:doc_redlines, "~> 0.6.1"}
         path -> {:doc_redlines, path: path}
       end
 
     [
       {:sweet_xml, "~> 0.7"},
-      {:pdf_redlines, "~> 0.7.1"},
+      {:pdf_redlines, "~> 0.7.2"},
       doc_redlines_dep,
       {:rustler, ">= 0.0.0", optional: true},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
-      {:ex_doc, "~> 0.39.3", only: :dev, runtime: false},
+      {:ex_doc, "~> 0.40.3", only: :dev, runtime: false},
       {:quokka, "~> 2.11", only: [:dev, :test], runtime: false}
     ]
   end

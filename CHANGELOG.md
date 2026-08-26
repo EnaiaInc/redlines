@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.3
+
+- Bump `doc_redlines` to `~> 0.6.1` and `pdf_redlines` to `~> 0.7.2`.
+- Update the native dependency stack to Rustler 0.38 and `rustler_precompiled` 0.9.
+- Refresh development dependencies.
+
 ## 0.9.2
 
 - Bump required `doc_redlines` dependency to `~> 0.6.0`.
